@@ -1,10 +1,28 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const mongoose = require('mongoose');
-const {handleComplaint, handleSuggestion, adminInterface, handleFAQ, deleteComplaint, getMainKeyboard } = require('./controllers/controllers');
+const { handleComplaint, handleSuggestion, adminInterface, handleFAQ, deleteComplaint, getMainKeyboard } = require('./controllers/controllers');
 
+async function connectToMongoDB() {
+    try {
+        await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            retryWrites: true,
+            w: 'majority'
+        });
+        console.log('Connected to MongoDB successfully');
+        // Initialize Express server after successful MongoDB connection
+        require('./models/server');
+    } catch (error) {
+        console.error('MongoDB connection error:', error.message);
+        console.log('Retrying connection in 5 seconds...');
+        setTimeout(connectToMongoDB, 5000);
+    }
+}
+
+// Initialize bot
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-
 let userLanguage = {};
 
 function showLanguageSelection(chatId) {
@@ -66,12 +84,11 @@ bot.on('message', (msg) => {
   }
 });
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Підключення до MongoDB успішне'))
-  .catch(err => console.error('Помилка підключення до MongoDB:', err));
-
 bot.on('polling_error', (error) => {
-  console.error('Помилка при опитуванні Telegram API:', error);
+  console.error('Telegram API polling error:', error);
 });
+
+// Start the application by connecting to MongoDB
+connectToMongoDB();
 
 module.exports = bot;
