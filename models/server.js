@@ -9,6 +9,30 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
+// Healthcheck endpoint повинен бути першим
+app.get('/health', (req, res) => {
+  const healthcheck = {
+    uptime: process.uptime(),
+    responseTime: process.hrtime(),
+    message: 'OK',
+    timestamp: Date.now(),
+    mongoStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  };
+  
+  try {
+    res.send('OK');
+  } catch (error) {
+    healthcheck.message = error;
+    res.status(503).send();
+  }
+});
+
+// Basic static routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 const io = socketIo(server, {
   cors: {
     origin: process.env.WEBAPP_URL || '*',

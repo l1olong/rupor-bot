@@ -6,8 +6,9 @@
     },
     "deploy": {
         "startCommand": "npm start",
-        "healthcheckPath": "/",
-        "healthcheckTimeout": 100,
-        "restartPolicyType": "on_failure"
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "on_failure",
+        "restartPolicyMaxRetries": 10
     }
 }
