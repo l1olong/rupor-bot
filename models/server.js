@@ -10,20 +10,20 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 
-// Healthcheck endpoint повинен бути першим
+// Налаштування статичних файлів перед іншими middleware
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// Healthcheck endpoint
 app.get('/health', (req, res) => {
-  const healthcheck = {
-    uptime: process.uptime(),
-    responseTime: process.hrtime(),
-    message: 'OK',
-    timestamp: Date.now(),
-    mongoStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  };
-  
   try {
-    res.send('OK');
+    res.status(200).send('OK');
   } catch (error) {
-    healthcheck.message = error;
+    res.status(503).send('Service Unavailable');
+  }
+});
+
+// Basic static routes should be after static middleware
+app.get('/', (req, res) => {
     res.status(503).send();
   }
 });
