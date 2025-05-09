@@ -7,35 +7,47 @@ const Complaint = require('./complaint');
 const session = require('express-session');
 const cors = require('cors');
 
+// Initialize express and create HTTP server
 const app = express();
 const server = http.createServer(app);
 
-// Налаштування статичних файлів перед іншими middleware
+// Healthcheck endpoint - must be first
+app.get('/health', async (req, res) => {
+  try {
+    // Check MongoDB connection
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    
+    if (!isMongoConnected) {
+      throw new Error('MongoDB is not connected');
+    }
+
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      mongoStatus: 'connected'
+    });
+  } catch (error) {
+    console.error('Healthcheck failed:', error);
+    res.status(503).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// Serve static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Healthcheck endpoint
-app.get('/health', (req, res) => {
-  try {
-    res.status(200).send('OK');
-  } catch (error) {
-    res.status(503).send('Service Unavailable');
-  }
-});
-
-// Basic static routes should be after static middleware
-app.get('/', (req, res) => {
-    res.status(503).send();
-  }
-});
-
-// Basic static routes
+// Basic routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+// Configure Socket.IO with CORS
 const io = socketIo(server, {
   cors: {
-    origin: process.env.WEBAPP_URL || '*',
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
@@ -45,11 +57,11 @@ const ADMIN_ID = process.env.ADMIN_ID;
 
 // Enable CORS for all routes
 app.use(cors({
-  origin: process.env.WEBAPP_URL || '*',
+  origin: '*',
   credentials: true
 }));
 
-// Налаштування session middleware з безпечним cookie на продакшені
+// Configure session middleware
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
@@ -61,7 +73,6 @@ app.use(session({
 }));
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Базові middleware для безпеки
 app.use((req, res, next) => {
@@ -201,12 +212,56 @@ io.on('connection', (socket) => {
   });
 });
 
-// Оновлений запуск сервера
-const PORT = process.env.PORT || 3000;
-const HOST = '0.0.0.0';
-
-server.listen(PORT, HOST, () => {
-  console.log(`Server running on ${HOST}:${PORT}`);
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error:', err);
+  res.status(500).json({ 
+    status: 'error',
+    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+  });
 });
+
+// Handle 404
+app.use((req, res) => {
+  res.status(404).json({ 
+    status: 'error',
+    message: 'Not Found' 
+  });
+});
+
+// Initialize MongoDB connection
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connected successfully');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+});
+
+// Start server only after MongoDB connects
+const startServer = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    
+    const PORT = process.env.PORT || 3000;
+    const HOST = '0.0.0.0';
+
+    server.listen(PORT, HOST, () => {
+      console.log(`Server running on ${HOST}:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 module.exports = { updateClients: () => io.emit('update') };

@@ -7,8 +7,10 @@
     "deploy": {
         "startCommand": "node index.js",
         "healthcheckPath": "/health",
-        "healthcheckTimeout": 1000,
+        "healthcheckTimeout": 2000,
+        "healthcheckInterval": 15,
         "restartPolicyType": "on_failure",
-        "restartPolicyMaxRetries": 3
+        "restartPolicyMaxRetries": 3,
+        "healthcheckProtocol": "http"
     }
 }
