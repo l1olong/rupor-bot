@@ -5,11 +5,25 @@ const path = require('path');
 const mongoose = require('mongoose');
 const Complaint = require('./complaint');
 const session = require('express-session');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: process.env.WEBAPP_URL || '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+  }
+});
+
 const ADMIN_ID = process.env.ADMIN_ID;
+
+// Enable CORS for all routes
+app.use(cors({
+  origin: process.env.WEBAPP_URL || '*',
+  credentials: true
+}));
 
 // Налаштування session middleware з безпечним cookie на продакшені
 app.use(session({
@@ -18,14 +32,9 @@ app.use(session({
   saveUninitialized: true,
   cookie: { 
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   }
 }));
-
-// Налаштування CORS для WebSocket
-io.origins((origin, callback) => {
-  callback(null, true);
-});
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -33,8 +42,11 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Базові middleware для безпеки
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT,DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Access-Control-Allow-Headers, Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers');
   next();
 });
 
@@ -167,7 +179,7 @@ io.on('connection', (socket) => {
 
 // Оновлений запуск сервера
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
   console.log(`Server running on ${HOST}:${PORT}`);
